@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI US/KR Stock Analysis System</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- TradingView Lightweight Charts -->
+    <script
+        src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- ApexCharts -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <!-- Google Fonts -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap"
+        rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans KR', sans-serif;
+            background-color: #0f1115;
+            color: #e5e7eb;
+        }
+
+        .nav-tab.active {
+            border-bottom: 2px solid #3b82f6;
+            color: #3b82f6;
+        }
+
+        .card {
+            background-color: #1a1c23;
+            border: 1px solid #2d2f39;
+            border-radius: 0.75rem;
+        }
+
+        .table-auto th {
+            background-color: #252833;
+            color: #9ca3af;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            padding: 0.75rem;
+            text-align: left;
+        }
+
+        .table-auto td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #2d2f39;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .bg-gradient-header {
+            background: linear-gradient(135deg, #1a1c23 0%, #0f1115 100%);
+        }
+
+        .status-badge {
+            font-size: 0.7rem;
+            padding: 0.125rem 0.375rem;
+            border-radius: 9999px;
+            font-weight: 600;
+        }
+
+        .text-up {
+            color: #f87171;
+        }
+
+        /* Korean standard: Red is Up */
+        .text-down {
+            color: #60a5fa;
+        }
+
+        /* Korean standard: Blue is Down */
+        .us-market .text-up {
+            color: #34d399;
+        }
+
+        /* US standard: Green is Up */
+        .us-market .text-down {
+            color: #f87171;
+        }
+
+        /* US standard: Red is Down */
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-[#1a1c23] border-b border-[#2d2f39] sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex items-center">
+                    <div class="bg-blue-600 rounded-lg p-1.5 mr-3">
+                        <i class="fas fa-chart-line text-white text-lg"></i>
+                    </div>
+                    <span class="text-xl font-bold tracking-tight text-white" id="main-header-title"
+                        data-i18n="main-title">US Market Analysis</span>
+                </div>
+
+                <!-- Navigation -->
+                <nav class="flex space-x-4 md:space-x-8 h-16">
+                    <a href="#" onclick="switchMarketTab(this, 'US Market')"
+                        class="nav-tab h-full flex items-center px-1 text-xs md:text-sm font-medium active"
+                        data-i18n="nav-us">US
+                        Stocks</a>
+                    <a href="#" onclick="switchMarketTab(this, 'KR Market')"
+                        class="nav-tab h-full flex items-center px-1 text-xs md:text-sm font-medium text-gray-400 hover:text-white"
+                        data-i18n="nav-kr">KR Stocks</a>
+                    <a href="#" onclick="switchMarketTab(this, 'Global Outlook')"
+                        class="nav-tab h-full flex items-center px-1 text-xs md:text-sm font-medium text-gray-400 hover:text-white"
+                        data-i18n="nav-calendar">Global Outlook</a>
+                </nav>
+
+                <!-- Actions -->
+                <div class="flex items-center space-x-4">
+                    <select id="model-select"
+                        class="bg-[#2d2f39] text-xs px-2 py-1 rounded border border-gray-700 outline-none cursor-pointer">
+                        <option value="gemini">Gemini 3 Flash Preview</option>
+                        <option value="gpt-4o">GPT-4o</option>
+                    </select>
+                    <button id="lang-toggle"
+                        class="bg-[#2d2f39] hover:bg-[#383b48] text-xs px-2.5 py-1 rounded-md transition-colors">EN/KO</button>
+                    <button onclick="refreshCurrentMarketBoard()"
+                        class="text-gray-400 hover:text-white transition-colors">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
+
+        <!-- Dashboard Header Section (Indices & Briefing) -->
+        <div id="dashboard-header-section">
+            <div id="us-market-indices-container" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+                <!-- Market Indices will be loaded here -->
+            </div>
+
+            <!-- AI Beginner Briefing - Shared -->
+            <div id="beginner-briefing-container"
+                class="card mb-6 p-5 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border border-blue-500/30 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold flex items-center text-blue-400">
+                        <i class="fas fa-robot mr-3 animate-pulse"></i>
+                        <span data-i18n="header-briefing">AI Today's Strategic Briefing</span>
+                    </h3>
+                    <div id="us-etf-sentiment" class="ml-auto"></div>
+                </div>
+                <span id="beginner-briefing-timestamp" class="text-[10px] text-gray-500 italic"></span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Summary & Sector -->
+                <div class="md:col-span-2 space-y-4">
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">🌡️ 오늘의 시장 상태</h4>
+                        <p id="bb-summary" class="text-sm text-gray-400 leading-relaxed"></p>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-300 mb-1 uppercase tracking-wider">🚀 지금 가장 핫한 섹터</h4>
+                        <p id="bb-hot-sector" class="text-sm text-gray-400"></p>
+                    </div>
+                    <div class="p-3 bg-blue-600/10 rounded-lg border border-blue-500/20">
+                        <h4 class="text-xs font-bold text-blue-300 mb-1">💡 오늘의 투자 한마디</h4>
+                        <p id="bb-tip" class="text-sm text-blue-100 italic font-medium"></p>
+                    </div>
+                </div>
+                <!-- Top 3 Picks -->
+                <div class="bg-black/20 p-4 rounded-xl border border-white/5">
+                    <h4 class="text-xs font-bold text-yellow-500 mb-3 uppercase flex items-center">
+                        <i class="fas fa-crown mr-2"></i> 추천 종목 Best 3
+                    </h4>
+                    <div id="bb-recommendations" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- US Market Detailed View -->
+        <div id="content-us-market" class="space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Left: US Specifics -->
+                <div class="lg:col-span-4 space-y-6">
+                    <div class="card p-4">
+                        <h3 class="text-sm font-semibold mb-4 flex items-center" data-i18n="header-smart-money">
+                            <i class="fas fa-bolt text-yellow-500 mr-2"></i> SMART MONEY PICKS
+                        </h3>
+                        <div class="overflow-y-auto max-h-[400px] scrollbar-hide">
+                            <table class="w-full text-xs">
+                                <tbody id="us-smart-money-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card p-4">
+                        <h3 class="text-sm font-semibold mb-4 flex items-center" data-i18n="header-sector">
+                            <i class="fas fa-th-large text-blue-500 mr-2"></i> SECTOR HEATMAP
+                        </h3>
+                        <div id="us-sector-heatmap" class="grid grid-cols-3 gap-2 h-48"></div>
+                    </div>
+                    <div class="card p-4">
+                        <h3 class="text-sm font-semibold mb-4 flex items-center">
+                            <i class="fas fa-briefcase text-purple-500 mr-2"></i> US PORTFOLIO HOLDINGS
+                        </h3>
+                        <div class="overflow-y-auto max-h-[300px] scrollbar-hide">
+                            <table class="w-full text-xs">
+                                <thead class="text-gray-500 text-[10px] uppercase">
+                                    <tr class="text-left">
+                                        <th class="pb-2">Ticker</th>
+                                        <th class="pb-2">Score</th>
+                                        <th class="pb-2 text-right">Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="us-portfolio-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Right: US Specifics -->
+                <div class="lg:col-span-8 space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="card p-4">
+                            <h3 class="text-sm font-semibold mb-4 flex items-center" data-i18n="header-etf">
+                                <i class="fas fa-funnel-dollar text-green-500 mr-2"></i> ETF FLOWS
+                            </h3>
+                            <div id="us-etf-inflows" class="space-y-2 text-xs"></div>
+                            <div id="us-etf-outflows" class="space-y-2 text-xs mt-4"></div>
+                        </div>
+                        <div class="card p-4">
+                            <h3 class="text-sm font-semibold mb-4 flex items-center" data-i18n="header-macro">
+                                <i class="fas fa-globe-americas text-blue-400 mr-2"></i> AI MACRO OUTLOOK
+                            </h3>
+                            <div id="us-macro-analysis"
+                                class="text-xs text-gray-400 max-h-[500px] overflow-y-auto scrollbar-hide"></div>
+                        </div>
+                    </div>
+                    <div class="card overflow-hidden">
+                        <div
+                            class="px-4 py-2 border-b border-[#2d2f39] text-xs font-bold uppercase tracking-wider text-gray-500">
+                            Unusual Options/Dark Pool Flow
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-[11px]">
+                                <tbody id="us-options-flow-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KR Market Detailed View -->
+        <div id="content-kr-market" class="hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Left: KR Specifics -->
+                <div class="lg:col-span-4 space-y-6">
+                    <div class="card p-4">
+                        <h3 class="text-sm font-semibold mb-4 flex items-center" data-i18n="header-smart-money">
+                            <i class="fas fa-bolt text-yellow-500 mr-2"></i> SMART MONEY PICKS
+                        </h3>
+                        <div class="overflow-y-auto max-h-[400px] scrollbar-hide">
+                            <table class="w-full text-xs">
+                                <tbody id="kr-smart-money-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card p-4">
+                        <h3 class="text-sm font-semibold mb-4 flex items-center" data-i18n="header-sector">
+                            <i class="fas fa-th-large text-blue-500 mr-2"></i> SECTOR HEATMAP
+                        </h3>
+                        <div id="kr-sector-heatmap" class="grid grid-cols-3 gap-2 h-48"></div>
+                    </div>
+                    <div class="card p-4">
+                        <h3 class="text-sm font-semibold mb-4 flex items-center">
+                            <i class="fas fa-briefcase text-purple-500 mr-2"></i> KR PORTFOLIO HOLDINGS
+                        </h3>
+                        <div class="overflow-y-auto max-h-[300px] scrollbar-hide">
+                            <table class="w-full text-xs">
+                                <thead class="text-gray-500 text-[10px] uppercase">
+                                    <tr class="text-left">
+                                        <th class="pb-2">Ticker</th>
+                                        <th class="pb-2 text-right">Score</th>
+                                        <th class="pb-2 text-right">Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="kr-portfolio-table"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Right: KR Specifics -->
+                <div class="lg:col-span-8 space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="card p-4">
+                            <h3 class="text-sm font-semibold mb-4 flex items-center" data-i18n="header-etf">
+                                <i class="fas fa-funnel-dollar text-green-500 mr-2"></i> ETF FLOWS
+                            </h3>
+                            <div id="kr-etf-inflows" class="space-y-2 text-xs"></div>
+                            <div id="kr-etf-outflows" class="space-y-2 text-xs mt-4"></div>
+                        </div>
+                        <div class="card p-4">
+                            <h3 class="text-sm font-semibold mb-4 flex items-center" data-i18n="header-macro">
+                                <i class="fas fa-globe-asia text-blue-400 mr-2"></i> AI MACRO OUTLOOK
+                            </h3>
+                            <div id="kr-macro-analysis"
+                                class="text-xs text-gray-400 max-h-[500px] overflow-y-auto scrollbar-hide"></div>
+                        </div>
+                    </div>
+                    <div class="card overflow-hidden">
+                        <div
+                            class="px-4 py-2 border-b border-[#2d2f39] text-xs font-bold uppercase tracking-wider text-gray-500">
+                            Institutional Net Buying (수급분석)
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-[11px]">
+                                <tbody id="kr-options-flow-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shared Detailed Analysis View (Visible for both) -->
+        <div id="shared-detail-view" class="mt-8 pt-8 border-t border-[#2d2f39] space-y-6 hidden">
+            <div class="card p-4 min-h-[650px] flex flex-col relative">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center space-x-3">
+                        <div id="us-chart-ticker-badge"
+                            class="bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded">TICKER</div>
+                        <h2 id="us-chart-name" class="text-lg font-bold text-white">Stock Detail View</h2>
+                        <div id="us-chart-score" class="text-yellow-500 font-bold ml-2">Score: -</div>
+                    </div>
+                    <div class="flex space-x-1">
+                        <button onclick="toggleIndicator('bb')"
+                            class="indicator-btn bg-[#2d2f39] hover:bg-[#383b48] text-[10px] px-2 py-1 rounded transition-colors"
+                            data-type="bb">Bollinger</button>
+                        <button onclick="toggleIndicator('sr')"
+                            class="indicator-btn bg-[#2d2f39] hover:bg-[#383b48] text-[10px] px-2 py-1 rounded transition-colors"
+                            data-type="sr">S/R</button>
+                        <button onclick="toggleIndicator('rsi')"
+                            class="indicator-btn bg-[#2d2f39] hover:bg-[#383b48] text-[10px] px-2 py-1 rounded transition-colors"
+                            data-type="rsi">RSI</button>
+                        <button onclick="toggleIndicator('macd')"
+                            class="indicator-btn bg-[#2d2f39] hover:bg-[#383b48] text-[10px] px-2 py-1 rounded transition-colors"
+                            data-type="macd">MACD</button>
+                    </div>
+                </div>
+                <div id="us-stock-chart-container" class="flex-grow w-full"></div>
+                <div id="us-extra-charts" class="h-32 mt-2 space-y-2 hidden">
+                    <div id="us-rsi-chart" class="h-14 bg-black/20 rounded"></div>
+                    <div id="us-macd-chart" class="h-14 bg-black/20 rounded"></div>
+                </div>
+            </div>
+
+            <div class="card p-5">
+                <h3 class="text-sm font-semibold mb-4 flex items-center text-purple-400">
+                    <i class="fas fa-brain mr-2"></i> AI STOCK SUMMARY
+                </h3>
+                <div id="us-ai-summary"
+                    class="text-sm text-gray-400 leading-relaxed max-h-60 overflow-y-auto scrollbar-hide">
+                    Select a stock to see deep analysis.
+                </div>
+                <div id="us-ai-updated" class="text-[10px] text-gray-600 mt-4 text-right italic"></div>
+            </div>
+        </div>
+
+        <!-- 4. Global Economic Calendar -->
+        <div id="calendar-view" class="tab-content hidden animate-fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Left: AI Briefing -->
+                <div class="lg:col-span-3">
+                    <div class="card p-6 mb-6 bg-gradient-to-r from-gray-800 to-gray-900 border border-purple-500/20">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400"
+                                data-i18n="calendar-header">
+                                🌏 Global Market Strategy & Events
+                            </h2>
+                            <span id="calendar-updated" class="text-xs text-gray-500 font-mono"></span>
+                        </div>
+                        <div id="calendar-briefing" class="text-gray-300">
+                            <!-- AI Briefing Injected Here -->
+                            <div class="flex items-center justify-center p-8">
+                                <i class="fas fa-spinner fa-spin text-purple-500 mr-2"></i> Generating Global
+                                Analysis...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom: Event Timeline -->
+                <div class="lg:col-span-3">
+                    <h3 class="text-lg font-bold text-gray-200 mb-4 px-2 border-l-4 border-blue-500 pl-2"
+                        data-i18n="calendar-events-title">
+                        Upcoming Major Events (US & KR)
+                    </h3>
+                    <div id="calendar-events" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Events Injected Here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-[#1a1c23] border-t border-[#2d2f39] py-6 px-4">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center text-xs text-gray-500">
+            <div class="mb-4 md:mb-0">
+                &copy; 2025 AI Stock Analysis System. All rights reserved.
+            </div>
+            <div class="flex space-x-6">
+                <span>Data by YFinance</span>
+                <span>Charts by TradingView</span>
+                <span>AI by Google/OpenAI</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // --- i18n Dictionary ---
+        const i18n = {
+            en: {
+                "main-title": "US Market Analysis",
+                "nav-us": "US Stocks",
+                "nav-kr": "KR Stocks",
+                "nav-calendar": "Global Outlook",
+                "calendar-header": "🌏 Global Market Strategy & Events",
+                "calendar-events-title": "Upcoming Major Events (US & KR)",
+                "header-smart-money": "SMART MONEY PICKS",
+                "header-sector": "SECTOR HEATMAP",
+                "header-etf": "ETF FLOWS",
+                "header-macro": "AI MACRO OUTLOOK",
+                "header-stock-summary": "AI STOCK SUMMARY",
+                "header-options": "OPTIONS UNUSUAL FLOW",
+                "col-ticker": "Ticker",
+                "col-sentiment": "Sentiment",
+                "col-volume": "Total Volume",
+                "col-cp": "Call/Put Ratio",
+                "col-levels": "Key Levels",
+                "label-top-picks": "Top 10 Analysis",
+                "label-inflows": "Big Inflows",
+                "label-outflows": "Big Outflows",
+                "btn-etf-ai": "View Fund Flow AI Analysis",
+                "btn-period-1y": "1Y",
+                "btn-period-1m": "1M",
+                "btn-period-max": "MAX",
+                "placeholder-ai-summary": "Select a stock from the left list to see AI summary.",
+                "placeholder-macro": "Macro analysis will appear here after selection."
+            },
+            ko: {
+                "main-title": "미국 시장 분석",
+                "nav-us": "미국 주식",
+                "nav-kr": "한국 주식",
+                "nav-calendar": "글로벌 전망",
+                "calendar-header": "🌏 글로벌 시장 전략 및 주요 이벤트",
+                "calendar-events-title": "주요 경제 일정 (미국 & 한국)",
+                "header-smart-money": "스마트 머니 추천",
+                "header-sector": "섹터 히트맵",
+                "header-etf": "ETF 자금 흐름",
+                "header-macro": "AI 매크로 전망",
+                "header-stock-summary": "AI 종목 요약",
+                "header-options": "옵션 이상 수급",
+                "col-ticker": "티커",
+                "col-sentiment": "심리",
+                "col-volume": "총 거래량",
+                "col-cp": "콜/풋 비율",
+                "col-levels": "주요 레벨",
+                "label-top-picks": "상위 10 분석",
+                "label-inflows": "순유입 상위",
+                "label-outflows": "순유출 상위",
+                "btn-etf-ai": "자금 흐름 AI 분석 보기",
+                "btn-period-1y": "1년",
+                "btn-period-1m": "1개월",
+                "btn-period-max": "전체",
+                "placeholder-ai-summary": "왼쪽 리스트에서 종목을 선택하면 AI 요약이 표시됩니다.",
+                "placeholder-macro": "데이터 로드 중..."
+            }
+        };
+
+        // --- State Management ---
+        let currentMarket = 'US';
+        let currentLang = localStorage.getItem('appLang') || 'en';
+        let currentModel = localStorage.getItem('appModel') || 'gemini';
+        let selectedDate = null;
+        let usStockChart = null;
+        let rsiChart = null;
+        let macdChart = null;
+        let priceUpdateInterval = null;
+        let macroUpdateInterval = null;
+
+        let indicatorState = { bb: false, sr: false, rsi: false, macd: false };
+        let indicatorData = null;
+        let currentChartPick = null;
+        let currentChartPeriod = '1y';
+
+        // Chart Series Refs
+        let bbUpperSeries, bbMiddleSeries, bbLowerSeries;
+        let srLines = [];
+        let rsiSeries, macdLineSeries, macdSignalSeries, macdHistSeries;
+
+        // --- Core Functions ---
+
+        function translateUI() {
+            const dict = i18n[currentLang];
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) {
+                    if (el.tagName === 'INPUT' && el.placeholder) el.placeholder = dict[key];
+                    else el.textContent = dict[key];
+                }
+            });
+            // Update title
+            const mainHeader = document.getElementById('main-header-title');
+            if (mainHeader) {
+                mainHeader.textContent = currentMarket === 'US' ? dict['main-title'] : (currentMarket === 'KR' ? dict['nav-kr'] : dict['nav-calendar']);
+            }
+            const langToggle = document.getElementById('lang-toggle');
+            if (langToggle) {
+                langToggle.textContent = currentLang === 'en' ? 'KO' : 'EN';
+            }
+        }
+
+        function switchMarketTab(tabElement, marketLabel) {
+            currentMarket = marketLabel.includes('US') ? 'US' : (marketLabel.includes('KR') ? 'KR' : 'CAL');
+            translateUI();
+
+            document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+            tabElement.classList.add('active');
+
+            const dashHeader = document.getElementById('dashboard-header-section');
+            const krContent = document.getElementById('content-kr-market');
+            const usContent = document.getElementById('content-us-market');
+            const calcContent = document.getElementById('calendar-view');
+            const sharedDetail = document.getElementById('shared-detail-view');
+
+            // Hide All First
+            if (dashHeader) dashHeader.classList.add('hidden');
+            krContent.classList.add('hidden');
+            usContent.classList.add('hidden');
+            if (calcContent) calcContent.classList.add('hidden');
+            sharedDetail.classList.add('hidden');
+
+            // Reset detail view state
+            currentChartPick = null;
+            indicatorState = { bb: false, sr: false, rsi: false, macd: false };
+            document.querySelectorAll('.indicator-btn').forEach(b => b.classList.remove('bg-blue-600', 'text-white'));
+            const extra = document.getElementById('us-extra-charts');
+            if (extra) extra.classList.add('hidden');
+
+            if (currentMarket === 'KR') {
+                if (dashHeader) dashHeader.classList.remove('hidden');
+                krContent.classList.remove('hidden');
+                sharedDetail.classList.remove('hidden');
+                updateKRDashboard();
+            } else if (currentMarket === 'US') {
+                if (dashHeader) dashHeader.classList.remove('hidden');
+                usContent.classList.remove('hidden');
+                sharedDetail.classList.remove('hidden');
+                updateUSMarketDashboard();
+            } else {
+                // Calendar Mode
+                if (calcContent) calcContent.classList.remove('hidden');
+                renderCalendar();
+            }
+        }
+
+        function refreshCurrentMarketBoard() {
+            if (currentMarket === 'KR') updateKRDashboard();
+            else if (currentMarket === 'US') updateUSMarketDashboard();
+            else renderCalendar();
+        }
+
+        async function updateUSMarketDashboard() {
+            try {
+                const [portfolioRes, smartMoneyRes, etfFlowsRes, briefRes] = await Promise.all([
+                    fetch(`/api/us/portfolio?lang=${currentLang}`),
+                    fetch(`/api/us/smart-money?lang=${currentLang}`),
+                    fetch(`/api/us/etf-flows?lang=${currentLang}`),
+                    fetch(`/api/us/beginner-briefing?lang=${currentLang}`)
+                ]);
+
+                const portfolioData = await portfolioRes.json();
+                const smartMoneyData = await smartMoneyRes.json();
+                const etfFlowsData = await etfFlowsRes.json();
+                const briefData = await briefRes.json();
+
+                renderMarketIndices(portfolioData.market_indices);
+                renderSmartMoneyPicks(smartMoneyData.top_picks, 'us-smart-money-table');
+                renderETFFlows(etfFlowsData, 'us-etf-inflows', 'us-etf-outflows', 'us-etf-sentiment');
+                renderUSPortfolioTable(portfolioData.top_holdings);
+                renderBeginnerBriefing(briefData);
+                renderSectorHeatmap('us', 'us-sector-heatmap');
+
+                reloadMacroAnalysis();
+                renderOptionsFlow(null, 'us-options-flow-body');
+
+                if (smartMoneyData.top_picks && smartMoneyData.top_picks.length > 0 && !currentChartPick) {
+                    loadUSStockFromTicker(smartMoneyData.top_picks[0].ticker);
+                }
+            } catch (e) { console.error("Error updating dashboard:", e); }
+        }
+
+        function renderUSPortfolioTable(holdings) {
+            const tbody = document.getElementById('us-portfolio-table');
+            if (!tbody) return;
+            tbody.innerHTML = (holdings || []).map(h => `
+                <tr class="hover:bg-white/5 cursor-pointer border-b border-[#2d2f39]" onclick="loadUSStockFromTicker('${h.ticker}')">
+                    <td class="py-2">
+                        <div class="font-bold text-white">${h.ticker}</div>
+                        <div class="text-[10px] text-gray-500 truncate w-24">${h.name}</div>
+                    </td>
+                    <td class="py-2">
+                        <div class="text-yellow-500 font-bold">${h.score}</div>
+                        <div class="text-[10px] text-gray-500">${h.grade}</div>
+                    </td>
+                    <td class="py-2 text-right">
+                        <div class="text-white">$${h.current_price}</div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function reloadMacroAnalysis() {
+            const isUS = currentMarket.toUpperCase() === 'US';
+            const container = document.getElementById(isUS ? 'us-macro-analysis' : 'kr-macro-analysis');
+            try {
+                const url = isUS ?
+                    `/api/us/macro-analysis?lang=${currentLang}&model=${currentModel}` :
+                    `/api/kr/macro-analysis?lang=${currentLang}`;
+                const res = await fetch(url);
+                const data = await res.json();
+                renderMacroAnalysis(data, isUS ? 'us-macro-analysis' : 'kr-macro-analysis');
+            } catch (e) {
+                console.error("Macro refresh error:", e);
+                if (container) container.innerHTML = '<div class="text-red-500">Error loading macro insights.</div>';
+            }
+        }
+
+        function renderMarketIndices(indices) {
+            const container = document.getElementById('us-market-indices-container');
+            if (!container || !indices) return;
+            container.innerHTML = indices.map(idx => `
+                <div class="card p-3 flex flex-col items-center justify-center hover:bg-[#252833] transition-all hover:scale-105 group">
+                    <span class="text-[10px] text-gray-500 mb-1 uppercase group-hover:text-blue-400 transition-colors">${idx.name}</span>
+                    <span class="text-sm font-bold text-white mb-1">${idx.price}</span>
+                    <span class="text-[10px] ${idx.color === 'green' ? 'text-green-400' : 'text-red-400'} font-medium">
+                        ${idx.change} (${idx.change_pct}%)
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        function renderSmartMoneyPicks(picks, containerId = 'us-smart-money-table') {
+            window.lastSmartMoneyPicks = picks;
+            const tbody = document.getElementById(containerId);
+            if (!tbody || !picks) return;
+            tbody.innerHTML = picks.map((p, idx) => {
+                const scoreEmoji = p.final_score > 90 ? '🔥' : (p.final_score > 80 ? '📈' : '📊');
+                const currency = currentMarket === 'us' ? '$' : '₩';
+                return `
+                    <tr onclick='loadUSStockFromTicker("${p.ticker}")' class="hover:bg-blue-600/10 cursor-pointer border-b border-[#2d2f39] transition-colors group">
+                        <td class="px-4 py-3">
+                            <div class="font-bold text-white group-hover:text-blue-400">${p.ticker} ${scoreEmoji}</div>
+                            <div class="text-[10px] text-gray-500 truncate max-w-[80px]">${p.name}</div>
+                        </td>
+                        <td class="px-2 py-3 text-right">
+                            <div class="text-xs font-bold ${p.final_score > 80 ? 'text-yellow-500' : 'text-gray-300'}">${p.final_score.toFixed(1)}</div>
+                            <div class="text-[10px] text-gray-500">${currency}${(p.current_price || 0).toLocaleString()}</div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        let sectorTreemap = { us: null, kr: null };
+        async function renderSectorHeatmap(market = 'us', containerId = 'us-sector-heatmap') {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            try {
+                const res = await fetch(`/api/${market}/sector-heatmap`);
+                const data = await res.json();
+                const sectors = data.sector_performance?.sectors || [];
+                if (sectors.length === 0) return;
+
+                const mKey = market.toLowerCase();
+                if (sectorTreemap[mKey]) sectorTreemap[mKey].destroy();
+
+                // Format data for ApexCharts Treemap
+                const seriesData = sectors.map(s => ({
+                    x: s.name,
+                    y: s.weight || 100, // Box size based on weight (volume*price)
+                    change: s.change // Color based on performance
+                }));
+
+                const options = {
+                    series: [{ data: seriesData }],
+                    legend: { show: false },
+                    chart: {
+                        type: 'treemap',
+                        height: 250,
+                        toolbar: { show: false },
+                        background: 'transparent'
+                    },
+                    theme: { mode: 'dark' },
+                    plotOptions: {
+                        treemap: {
+                            distributed: true,
+                            enableShades: false
+                        }
+                    },
+                    dataLabels: {
+                        enabled: true,
+                        style: { fontSize: '10px', fontWeight: 'bold' },
+                        formatter: function (text, op) {
+                            const sector = sectors.find(s => s.name === text);
+                            return [text, (sector ? (sector.change > 0 ? '+' : '') + sector.change.toFixed(1) + '%' : '')];
+                        },
+                        offsetY: -4
+                    },
+                    fill: {
+                        type: 'solid',
+                        color: function ({ value, seriesIndex, dataPointIndex, w }) {
+                            const change = sectors[dataPointIndex]?.change || 0;
+                            if (change > 2) return '#065f46';
+                            if (change > 0) return '#10b981';
+                            if (change > -2) return '#ef4444';
+                            return '#7f1d1d';
+                        }
+                    },
+                    tooltip: {
+                        theme: 'dark',
+                        y: { formatter: (val) => val.toLocaleString() }
+                    }
+                };
+
+
+                const chart = new ApexCharts(container, options);
+                chart.render();
+                sectorTreemap[mKey] = chart;
+            } catch (e) {
+                console.error("Heatmap error:", e);
+                container.innerHTML = 'Error loading heatmap';
+            }
+        }
+
+        function renderETFFlows(data, inflowId = 'us-etf-inflows', outflowId = 'us-etf-outflows', sentimentId = 'us-etf-sentiment') {
+            const inflowContainer = document.getElementById(inflowId);
+            const outflowContainer = document.getElementById(outflowId);
+            const sentimentEl = document.getElementById(sentimentId);
+
+            if (sentimentEl && data.market_sentiment_score) {
+                const score = data.market_sentiment_score;
+                const status = score > 55 ? 'Bullish' : (score < 45 ? 'Bearish' : 'Neutral');
+                sentimentEl.innerHTML = `<span class="status-badge ${status === 'Bullish' ? 'bg-green-900 text-green-400' : (status === 'Bearish' ? 'bg-red-900 text-red-400' : 'bg-gray-800 text-gray-400')} animate-pulse">${status} ${score}</span>`;
+            }
+
+            const renderETFItem = (e, isInflow = true) => {
+                const desc = currentLang === 'ko' ? (e.description_ko || '') : (e.description_en || '');
+                const uniqueId = `etf-desc-${e.ticker?.replace('.', '-') || e.name?.replace(/\s/g, '-')}`;
+                const bgClass = isInflow ? 'bg-green-900/10 hover:bg-green-900/20' : 'bg-red-900/10 hover:bg-red-900/20';
+                const scoreClass = isInflow ? 'text-green-400' : 'text-red-400';
+                const scorePrefix = isInflow ? '+' : '';
+
+                return `
+                    <div class="${bgClass} rounded cursor-pointer transition-all" onclick="toggleETFDescription('${uniqueId}')">
+                        <div class="flex justify-between items-center text-[11px] p-1.5">
+                            <span class="text-gray-300 font-medium">${e.ticker || e.name}</span>
+                            <span class="${scoreClass} font-bold">${scorePrefix}${e.flow_score}</span>
+                        </div>
+                        <div id="${uniqueId}" class="hidden px-2 pb-2">
+                            <p class="text-[10px] text-gray-400 leading-relaxed">${desc || (currentLang === 'ko' ? '설명 없음' : 'No description')}</p>
+                            <span class="text-[9px] text-gray-500 italic">${e.category || ''}</span>
+                        </div>
+                    </div>
+                `;
+            };
+
+            if (data.top_inflows && inflowContainer) {
+                inflowContainer.innerHTML = data.top_inflows.map(e => renderETFItem(e, true)).join('');
+            }
+            if (data.top_outflows && outflowContainer) {
+                outflowContainer.innerHTML = data.top_outflows.map(e => renderETFItem(e, false)).join('');
+            }
+        }
+
+        // Toggle ETF description visibility
+        function toggleETFDescription(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.toggle('hidden');
+            }
+        }
+
+        function renderMacroAnalysis(data, containerId = 'us-macro-analysis') {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            const getGlow = (val, type) => {
+                if (type === 'VIX' || type === 'VIX_KR') return 'rgba(239, 68, 68, 0.3)';
+                if (type.includes('USD') || type.includes('Yield')) return 'rgba(59, 130, 246, 0.3)';
+                if (type.includes('Bitcoin') || type.includes('Gold') || type.includes('SAMSUNG')) return 'rgba(245, 158, 11, 0.3)';
+                return 'rgba(255, 255, 255, 0.1)';
+            };
+
+            let html = `
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                ${Object.entries(data.macro_indicators || {}).map(([k, v]) => {
+                let val = v ? (typeof v === 'object' ? v.value : v) : 'N/A';
+                if (!isNaN(parseFloat(val))) val = parseFloat(val).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const glow = getGlow(parseFloat(val) || 0, k);
+                let change = v && typeof v === 'object' ? (v.change_1d || 0) : 0;
+                change = parseFloat(change).toFixed(2);
+                return `
+                        <div class="bg-[#2d2f39]/50 p-2 rounded transition-all hover:scale-105" style="box-shadow: inset 0 0 10px ${glow}">
+                            <div class="text-[9px] text-gray-500 uppercase">${k}</div>
+                            <div class="text-xs font-bold text-white">${val}</div>
+                            <div class="text-[8px] ${change >= 0 ? 'text-green-400' : 'text-red-400'}">${change >= 0 ? '▲' : '▼'} ${Math.abs(change)}%</div>
+                        </div>
+                    `;
+            }).join('')}
+            </div>
+            <div class="whitespace-pre-wrap leading-relaxed border-t border-[#2d2f39] pt-3 mt-3">${data.ai_analysis}</div>
+            `;
+            container.innerHTML = html;
+        }
+
+        async function renderOptionsFlow(data, containerId = 'us-options-flow-body') {
+            const tbody = document.getElementById(containerId);
+            if (!tbody) return;
+            try {
+                let flows = data;
+                if (!flows) {
+                    const res = await fetch(containerId.includes('kr') ? '/api/kr/options-flow' : '/api/us/options-flow');
+                    const resData = await res.json();
+                    flows = resData.unusual_flows || resData;
+                }
+                if (!flows || !Array.isArray(flows)) return;
+
+                tbody.innerHTML = flows.map(f => `
+                    <tr class="hover:bg-white/5 border-b border-[#2d2f39]">
+                        <td class="px-4 py-3 font-bold text-blue-400">${f.ticker}</td>
+                        <td class="px-4 py-3">
+                            <span class="status-badge ${f.sentiment === 'Bullish' ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'}">${f.sentiment}</span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-400">${f.total_volume || f.vol_multiplier || '-'}</td>
+                        <td class="px-4 py-3 font-mono text-yellow-500">${f.cp_ratio || f.type || '-'}</td>
+                        <td class="px-4 py-3 text-[10px] text-gray-500 italic">${f.levels || f.timestamp || '-'}</td>
+                    </tr>
+                `).join('');
+            } catch (e) { tbody.innerHTML = 'Error loading options flow'; }
+        }
+
+        async function renderBeginnerBriefing(manualData = null) {
+            const container = document.getElementById('beginner-briefing-container');
+            const summaryEl = document.getElementById('bb-summary');
+            const sectorEl = document.getElementById('bb-hot-sector');
+            const tipEl = document.getElementById('bb-tip');
+            const picksList = document.getElementById('bb-recommendations');
+
+            if (!container || !summaryEl || !sectorEl || !tipEl || !picksList) return;
+
+            try {
+                let data = manualData;
+                if (!data) {
+                    const url = currentMarket === 'US' ? '/api/us/beginner-briefing' : '/api/kr/beginner-briefing';
+                    const res = await fetch(url);
+                    data = await res.json();
+                }
+
+                if (!data || data.error) return;
+
+                container.classList.remove('hidden');
+                summaryEl.textContent = data.today_summary || data.briefing || '-';
+                sectorEl.textContent = data.hot_sector || (data.top_recommendation ? data.top_recommendation.ticker : 'N/A');
+                tipEl.textContent = data.pro_tip || data.action_tip || '-';
+
+                const recommendations = data.top_recommendations || (data.top_recommendation ? [data.top_recommendation] : []);
+
+                picksList.innerHTML = recommendations.map(p => `
+                    <div class="p-2 bg-white/5 rounded hover:bg-white/10 transition-colors cursor-pointer group" onclick="loadUSStockFromTicker('${p.ticker}')">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-sm font-bold text-white group-hover:text-blue-400">${p.name || p.ticker} <span class="text-[10px] text-gray-500">(${p.ticker})</span></span>
+                            <i class="fas fa-chevron-right text-[10px] text-gray-600"></i>
+                        </div>
+                        <p class="text-[10px] text-gray-500 leading-tight">${p.reason || ''}</p>
+                    </div>
+                `).join('');
+            } catch (e) { console.error("Briefing error:", e); }
+        }
+
+        function loadUSStockFromTicker(ticker) {
+            // Find in current data and load
+            const currentPicks = window.lastSmartMoneyPicks || [];
+            const pick = currentPicks.find(p => p.ticker === ticker);
+            if (pick) loadUSStockChart(pick);
+            else {
+                // Fallback for basic info if picker not in top 10
+                loadUSStockChart({ ticker: ticker, name: ticker, final_score: 0 });
+            }
+        }
+
+        async function updateRealtimePrices() {
+            const rows = document.querySelectorAll('#us-smart-money-table tr');
+            const tickers = Array.from(rows).map(r => r.querySelector('.font-bold').textContent.split(' ')[0]);
+            if (tickers.length === 0) return;
+
+            try {
+                const res = await fetch('/api/realtime-prices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tickers })
+                });
+                const prices = await res.json();
+
+                Object.entries(prices).forEach(([ticker, data]) => {
+                    const el = document.getElementById(`price-${ticker}`);
+                    if (el) {
+                        const oldPrice = parseFloat(el.textContent.replace('$', ''));
+                        const newPrice = data.current;
+                        el.textContent = `$${newPrice.toFixed(2)}`;
+                        if (newPrice > oldPrice) {
+                            el.classList.add('text-green-400'); el.classList.remove('text-gray-500');
+                            setTimeout(() => el.classList.add('text-gray-500'), 1000);
+                        } else if (newPrice < oldPrice) {
+                            el.classList.add('text-red-400'); el.classList.remove('text-gray-500');
+                            setTimeout(() => el.classList.add('text-gray-500'), 1000);
+                        }
+                    }
+                });
+            } catch (e) { console.warn("Realtime price update failed"); }
+        }
+
+        async function loadUSStockChart(pick) {
+            currentChartPick = pick;
+            const detailView = document.getElementById('shared-detail-view');
+            if (detailView) detailView.classList.remove('hidden');
+
+            document.getElementById('us-chart-ticker-badge').textContent = pick.ticker;
+            document.getElementById('us-chart-name').textContent = pick.name;
+            document.getElementById('us-chart-score').textContent = `Score: ${pick.final_score.toFixed(1)}`;
+
+            document.querySelectorAll('#us-smart-money-table tr').forEach(r => r.classList.remove('bg-blue-600/20'));
+            const clickedRow = Array.from(document.querySelectorAll('#us-smart-money-table tr')).find(r => r.textContent.includes(pick.ticker));
+            if (clickedRow) clickedRow.classList.add('bg-blue-600/20');
+
+            const container = document.getElementById('us-stock-chart-container');
+            if (!container) return;
+            container.innerHTML = '<div class="flex items-center justify-center h-full"><i class="fas fa-spinner fa-spin text-2xl"></i></div>';
+
+            loadUSAISummary(pick.ticker);
+
+            if (typeof LightweightCharts === 'undefined') {
+                container.innerHTML = 'Chart library not loaded';
+                return;
+            }
+
+            try {
+                // Use generic chart endpoint which handles fix_ticker
+                const res = await fetch(`/api/us/stock-chart/${pick.ticker}?period=${currentChartPeriod}`);
+                const data = await res.json();
+                container.innerHTML = '';
+
+                if (usStockChart) {
+                    try {
+                        if (typeof usStockChart.remove === 'function') {
+                            usStockChart.remove();
+                        }
+                    } catch (e) { console.warn("Chart removal error:", e); }
+                    usStockChart = null;
+                }
+
+                const chartOptions = {
+                    layout: { background: { color: '#1a1c23' }, textColor: '#d1d5db' },
+                    grid: { vertLines: { color: '#2d2f39' }, horzLines: { color: '#2d2f39' } },
+                    rightPriceScale: { borderColor: '#2d2f39' },
+                    timeScale: { borderColor: '#2d2f39' },
+                };
+
+                const chart = LightweightCharts.createChart(container, chartOptions);
+
+                if (!chart || typeof chart.addCandlestickSeries !== 'function') {
+                    throw new Error("Invalid chart object returned by library");
+                }
+
+                const candleSeries = chart.addCandlestickSeries({
+                    upColor: '#34d399', downColor: '#f87171', borderVisible: false, wickUpColor: '#34d399', wickDownColor: '#f87171',
+                });
+                candleSeries.setData(data.candles);
+                chart.timeScale().fitContent();
+
+                // Track global instance for indicators
+                usStockChart = chart;
+
+                bbUpperSeries = bbMiddleSeries = bbLowerSeries = null;
+                srLines = [];
+                indicatorData = null;
+
+                if (indicatorState.bb) renderBB();
+                if (indicatorState.sr) renderSR();
+                if (indicatorState.rsi) renderRSI();
+                if (indicatorState.macd) renderMACD();
+            } catch (e) {
+                console.error("Chart load error:", e);
+                container.innerHTML = '<div class="flex items-center justify-center h-full text-gray-400">Error loading chart data</div>';
+            }
+        }
+
+        async function loadUSAISummary(ticker) {
+            const el = document.getElementById('us-ai-summary');
+            if (!el) return;
+            el.innerHTML = '<i class="fas fa-robot animate-bounce mr-2"></i> Analyzing with AI...';
+            try {
+                const res = await fetch(`/api/us/ai-summary/${ticker}?lang=${currentLang}`);
+                const data = await res.json();
+                el.innerHTML = data.summary || i18n[currentLang]['placeholder-ai-summary'];
+                const updatedEl = document.getElementById('us-ai-updated');
+                if (updatedEl) updatedEl.textContent = `Updated: ${data.updated || 'N/A'}`;
+            } catch (e) { el.innerHTML = 'Error'; }
+        }
+
+        async function toggleIndicator(type) {
+            indicatorState[type] = !indicatorState[type];
+            const btn = document.querySelector(`.indicator-btn[data-type="${type}"]`);
+            if (indicatorState[type]) btn.classList.add('bg-blue-600', 'text-white');
+            else btn.classList.remove('bg-blue-600', 'text-white');
+
+            if (!indicatorData && currentChartPick) {
+                const res = await fetch(`/api/us/technical-indicators/${currentChartPick.ticker}`);
+                indicatorData = await res.json();
+            }
+
+            if (type === 'bb') renderBB();
+            else if (type === 'sr') renderSR();
+            else if (type === 'rsi') renderRSI();
+            else if (type === 'macd') renderMACD();
+        }
+
+        function renderBB() {
+            if (bbUpperSeries) { usStockChart.removeSeries(bbUpperSeries); usStockChart.removeSeries(bbMiddleSeries); usStockChart.removeSeries(bbLowerSeries); bbUpperSeries = null; }
+            if (!indicatorState.bb || !indicatorData) return;
+            bbUpperSeries = usStockChart.addLineSeries({ color: 'rgba(147, 51, 234, 0.4)', lineWidth: 1 });
+            bbMiddleSeries = usStockChart.addLineSeries({ color: 'rgba(147, 51, 234, 0.8)', lineWidth: 1, lineStyle: 2 });
+            bbLowerSeries = usStockChart.addLineSeries({ color: 'rgba(147, 51, 234, 0.4)', lineWidth: 1 });
+            bbUpperSeries.setData(indicatorData.bollinger.upper);
+            bbMiddleSeries.setData(indicatorData.bollinger.middle);
+            bbLowerSeries.setData(indicatorData.bollinger.lower);
+        }
+
+        function renderSR() {
+            srLines.forEach(l => { try { usStockChart.removeSeries(l); } catch (e) { } });
+            srLines = [];
+            if (!indicatorState.sr || !indicatorData || !indicatorData.support_resistance) return;
+            const period = indicatorData.rsi;
+            if (!period || period.length === 0) return;
+
+            (indicatorData.support_resistance.support || []).forEach(val => {
+                const l = usStockChart.addLineSeries({ color: '#10b981', lineWidth: 1, lineStyle: 2, priceLineVisible: false });
+                l.setData([{ time: period[0].time, value: val }, { time: period[period.length - 1].time, value: val }]);
+                srLines.push(l);
+            });
+            (indicatorData.support_resistance.resistance || []).forEach(val => {
+                const l = usStockChart.addLineSeries({ color: '#f87171', lineWidth: 1, lineStyle: 2, priceLineVisible: false });
+                l.setData([{ time: period[0].time, value: val }, { time: period[period.length - 1].time, value: val }]);
+                srLines.push(l);
+            });
+        }
+
+        function renderRSI() {
+            const container = document.getElementById('us-rsi-chart');
+            const box = document.getElementById('us-extra-charts');
+
+            // Clean up existing chart
+            if (rsiChart) {
+                try { rsiChart.remove(); } catch (e) { }
+                rsiChart = null;
+            }
+
+            if (!indicatorState.rsi) { container.classList.add('hidden'); if (!indicatorState.macd) box.classList.add('hidden'); return; }
+            if (!indicatorData || !indicatorData.rsi) return;
+            box.classList.remove('hidden'); container.classList.remove('hidden');
+            container.innerHTML = '';
+            rsiChart = LightweightCharts.createChart(container, { height: 70, layout: { background: { color: 'transparent' }, textColor: '#d1d5db' }, timeScale: { visible: false }, rightPriceScale: { borderColor: '#2d2f39' }, grid: { vertLines: { visible: false }, horzLines: { color: '#2d2f39' } } });
+            const s = rsiChart.addLineSeries({ color: '#10b981', lineWidth: 1.5 });
+            s.setData(indicatorData.rsi);
+            rsiChart.timeScale().fitContent();
+        }
+
+        function renderMACD() {
+            const container = document.getElementById('us-macd-chart');
+            const box = document.getElementById('us-extra-charts');
+
+            // Clean up existing chart
+            if (macdChart) {
+                try { macdChart.remove(); } catch (e) { }
+                macdChart = null;
+            }
+
+            if (!indicatorState.macd) { container.classList.add('hidden'); if (!indicatorState.rsi) box.classList.add('hidden'); return; }
+            if (!indicatorData || !indicatorData.macd) return;
+            box.classList.remove('hidden'); container.classList.remove('hidden');
+            container.innerHTML = '';
+            macdChart = LightweightCharts.createChart(container, { height: 70, layout: { background: { color: 'transparent' }, textColor: '#d1d5db' }, timeScale: { visible: false }, rightPriceScale: { borderColor: '#2d2f39' }, grid: { vertLines: { visible: false }, horzLines: { color: '#2d2f39' } } });
+            const l = macdChart.addLineSeries({ color: '#3b82f6', lineWidth: 1.5 });
+            l.setData(indicatorData.macd.macd_line);
+            const sig = macdChart.addLineSeries({ color: '#f59e0b', lineWidth: 1.5 });
+            sig.setData(indicatorData.macd.signal_line);
+            macdChart.timeScale().fitContent();
+        }
+
+        async function updateKRDashboard() {
+            try {
+                const [portRes, smartRes, briefRes, etfRes, macroRes, optRes] = await Promise.all([
+                    fetch(`/api/kr/portfolio${selectedDate ? '?date=' + selectedDate : ''}`),
+                    fetch('/api/kr/smart-money'),
+                    fetch('/api/kr/beginner-briefing'),
+                    fetch('/api/kr/etf-flows'),
+                    fetch(`/api/kr/macro-analysis?lang=${currentLang}`),
+                    fetch('/api/kr/options-flow')
+                ]);
+
+                const [portData, smartData, briefData, etfData, macroData, optData] = await Promise.all([
+                    portRes.json(), smartRes.json(), briefRes.json(), etfRes.json(), macroRes.json(), optRes.json()
+                ]);
+
+                // Render components
+                renderKRPortfolioTable(portData.top_holdings);
+                renderMarketIndices(portData.market_indices);
+                renderSmartMoneyPicks(smartData.top_picks, 'kr-smart-money-table');
+                renderBeginnerBriefing(briefData);
+                renderETFFlows(etfData, 'kr-etf-inflows', 'kr-etf-outflows', 'kr-etf-sentiment');
+                renderMacroAnalysis(macroData, 'kr-macro-analysis');
+                renderOptionsFlow(optData, 'kr-options-flow-body');
+                renderSectorHeatmap('kr', 'kr-sector-heatmap');
+
+                window.lastSmartMoneyPicks = smartData.top_picks;
+
+                if (smartData.top_picks && smartData.top_picks.length > 0 && !currentChartPick) {
+                    loadUSStockFromTicker(smartData.top_picks[0].ticker);
+                }
+            } catch (e) { console.error("KR Dashboard error:", e); }
+        }
+
+        function renderKRPortfolioTable(holdings) {
+            const tbody = document.getElementById('kr-portfolio-table');
+            if (!tbody) return;
+            tbody.innerHTML = (holdings || []).map(h => `
+                <tr class="hover:bg-white/5 cursor-pointer border-b border-[#2d2f39]" onclick="loadUSStockFromTicker('${h.ticker}')">
+                    <td class="py-2">
+                        <div class="font-bold text-white">${h.ticker}</div>
+                        <div class="text-[10px] text-gray-500 truncate w-24">${h.name}</div>
+                    </td>
+                    <td class="py-2 text-right">
+                        <div class="text-yellow-500 font-bold">${h.score ? h.score.toFixed(1) : '-'}</div>
+                        <div class="text-[10px] text-gray-500">${h.grade || ''}</div>
+                    </td>
+                    <td class="py-2 text-right">
+                        <div class="text-white">₩${(h.price || 0).toLocaleString()}</div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Global Calendar Renderer
+        async function renderCalendar() {
+            try {
+                const response = await fetch('/api/calendar');
+                const data = await response.json();
+
+                const container = document.getElementById('calendar-events');
+                const briefingContainer = document.getElementById('calendar-briefing');
+                const updatedTime = document.getElementById('calendar-updated');
+
+                updatedTime.textContent = `Updated: ${new Date(data.updated).toLocaleString()}`;
+
+                // Render AI Briefing
+                if (data.ai_briefing && data.ai_briefing.weekly_outlook) {
+                    const b = data.ai_briefing;
+                    briefingContainer.innerHTML = `
+                        <div class="space-y-4">
+                            <div class="p-4 bg-gray-800/50 rounded border border-gray-700">
+                                <h4 class="text-purple-400 font-bold mb-2 flex items-center">
+                                    <i class="fas fa-robot mr-2"></i> Weekly Global Market Briefing
+                                </h4>
+                                <p class="text-gray-300 text-sm leading-relaxed">${b.weekly_outlook}</p>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="p-4 bg-red-900/10 rounded border border-red-900/30">
+                                    <h5 class="text-red-400 font-bold mb-2 text-xs uppercase">⚠️ Key Risks</h5>
+                                    <ul class="list-disc list-inside text-xs text-gray-400 space-y-1">
+                                        ${b.key_risks ? b.key_risks.map(r => `<li>${r}</li>`).join('') : '<li>No risks identified</li>'}
+                                    </ul>
+                                </div>
+                                <div class="p-4 bg-green-900/10 rounded border border-green-900/30">
+                                    <h5 class="text-green-400 font-bold mb-2 text-xs uppercase">🎯 Trading Strategy</h5>
+                                    <p class="text-xs text-gray-400">${b.trading_strategy || 'Monitor events.'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    briefingContainer.innerHTML = `<div class="text-center text-gray-500 py-8">Parsing AI briefing...</div>`;
+                }
+
+                // Render Events List
+                container.innerHTML = '';
+                if (!data.events || data.events.length === 0) {
+                    container.innerHTML = '<div class="text-center text-gray-500 py-8">No events scheduled.</div>';
+                    return;
+                }
+
+                data.events.forEach(event => {
+                    const date = new Date(event.date);
+                    const isHighImpact = event.impact === 'High';
+                    const flag = event.country === 'KR' ? '🇰🇷' : '🇺🇸';
+
+                    // Bilingual Selection
+                    const eventName = (currentLang === 'ko' && event.event_ko) ? event.event_ko : (event.event_en || event.event);
+                    const eventDesc = (currentLang === 'ko' && event.description_ko) ? event.description_ko : (event.description_en || event.description);
+
+                    const div = document.createElement('div');
+                    div.className = `p-4 rounded border ${isHighImpact ? 'bg-red-900/10 border-red-900/30' : 'bg-[#2d2f39] border-gray-700'}`;
+
+                    div.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-xl">${flag}</span>
+                                <div>
+                                    <div class="font-bold ${isHighImpact ? 'text-red-400' : 'text-gray-200'}">
+                                        ${eventName}
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        ${date.toLocaleDateString()} • ${event.category}
+                                    </div>
+                                </div>
+                            </div>
+                            ${isHighImpact ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-900/50 text-red-400 border border-red-800">HIGH IMPACT</span>' : ''}
+                        </div>
+                        <p class="text-xs text-gray-400 mb-2">${eventDesc}</p>
+                        ${event.ai_analysis ? `
+                            <div class="mt-2 p-2 bg-black/20 rounded text-[11px] text-gray-300 border-l-2 border-purple-500">
+                                <i class="fas fa-comment-dots mr-1 text-purple-400"></i> ${event.ai_analysis}
+                            </div>
+                        ` : ''}
+                    `;
+                    container.appendChild(div);
+                });
+
+            } catch (error) {
+                console.error('Error loading calendar:', error);
+                document.getElementById('calendar-events').innerHTML = '<div class="text-red-500 text-center">Failed to load calendar data.</div>';
+            }
+        }
+
+        // --- Event Listeners ---
+        document.getElementById('lang-toggle').onclick = () => {
+            currentLang = currentLang === 'en' ? 'ko' : 'en';
+            localStorage.setItem('appLang', currentLang);
+            translateUI();
+            refreshCurrentMarketBoard();
+        };
+
+        document.getElementById('model-select').onchange = (e) => {
+            currentModel = e.target.value;
+            localStorage.setItem('appModel', currentModel);
+            updateUSMarketDashboard();
+        };
+
+        document.getElementById('history-date').onchange = (e) => {
+            selectedDate = e.target.value;
+            updateKRDashboard();
+        };
+
+        function resetDate() {
+            const dateInput = document.getElementById('history-date');
+            if (dateInput) dateInput.value = '';
+            selectedDate = null;
+            updateKRDashboard();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('model-select').value = currentModel;
+            translateUI();
+            updateUSMarketDashboard();
+
+            // Intervals
+            priceUpdateInterval = setInterval(updateRealtimePrices, 30000); // 30s
+            macroUpdateInterval = setInterval(reloadMacroAnalysis, 600000); // 10min
+        });
+    </script>
+</body>
+
+</html>

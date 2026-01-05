@@ -1,0 +1,12 @@
+# US Stock Analysis - Part 1: Data Collection
+# Required Python packages
+
+pandas>=2.0.0
+numpy>=1.24.0
+yfinance>=0.2.30
+tqdm>=4.65.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+flask
+ta

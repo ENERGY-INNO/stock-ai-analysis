@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Logs
+*.log
+nohup.out
+tunnel.log
+lt_stock.log
+flask.log
+
+# Data files (generated)
+*.csv
+*.json
+
+# Keep important config files
+!requirements.txt
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
